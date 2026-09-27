@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "Ultron Bug Watcher",
+  "version": "1.0.0",
+  "description": "Relays console errors, uncaught exceptions, and failed network requests from one site you choose to your local Ultron bridge, so bug findings from watching the screen and bugs from the browser's own console/network land in one report.",
+  "permissions": ["storage", "webRequest"],
+  "host_permissions": [
+    "http://127.0.0.1:8765/*",
+    "http://localhost:8765/*",
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_start",
+      "all_frames": false
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Ultron Bug Watcher"
+  }
+}

@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Ultron Bug Watcher</title>
+  <style>
+    body { font-family: system-ui, sans-serif; width: 300px; padding: 14px; background: #0e0e14; color: #e8e8f0; }
+    h1 { font-size: 14px; margin: 0 0 10px; }
+    label { display: block; font-size: 12px; margin: 10px 0 4px; color: #a0a0b8; }
+    input[type="text"], input[type="password"] {
+      width: 100%; box-sizing: border-box; padding: 6px 8px; border-radius: 6px;
+      border: 1px solid #3a3a52; background: #1a1a26; color: #e8e8f0; font-size: 12px;
+    }
+    .row { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+    button {
+      width: 100%; margin-top: 12px; padding: 8px; border-radius: 6px; border: none;
+      background: #7c5cff; color: white; font-weight: 600; cursor: pointer; font-size: 13px;
+    }
+    #status { margin-top: 8px; font-size: 11px; color: #a0a0b8; min-height: 14px; }
+  </style>
+</head>
+<body>
+  <h1>🤖 Ultron Bug Watcher</h1>
+
+  <label for="sitePrefix">Watch this site (URL prefix)</label>
+  <input type="text" id="sitePrefix" placeholder="https://staging.yoursite.com/" />
+
+  <label for="bridgeToken">Bridge token (printed by gesture_bridge.py)</label>
+  <input type="password" id="bridgeToken" placeholder="paste the token here" />
+
+  <div class="row">
+    <input type="checkbox" id="enabled" />
+    <label for="enabled" style="margin:0;">Actively watching</label>
+  </div>
+
+  <button id="save">Save</button>
+  <div id="status"></div>
+</body>
+<script src="popup.js"></script>
+</html>

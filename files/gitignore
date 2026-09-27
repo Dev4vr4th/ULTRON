@@ -1,0 +1,17 @@
+# Personal output — findings/screenshots are your data, not code
+bug_report.md
+laptop_test_capture.png
+desktop_after_click.png
+phone_after_click.png
+*.png
+*.jpg
+*.jpeg
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Never commit a real key if you ever test with one hardcoded by mistake
+.env

@@ -1,0 +1,9 @@
+pyautogui
+requests
+pillow
+opencv-python-headless
+numpy
+pynput
+SpeechRecognition
+pyttsx3
+sounddevice

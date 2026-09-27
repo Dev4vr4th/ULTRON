@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ULTRON // GESTURE + VOICE CORE</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --void: #05070c;
+    --void-2: #0a0f18;
+    --cyan: #4de3ff;
+    --cyan-dim: #1c5a70;
+    --violet: #8b6bff;
+    --danger: #ff4d5e;
+    --text-hi: #dff3ff;
+    --text-lo: #5f8aa3;
+    --line: rgba(77, 227, 255, 0.25);
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    background: var(--void);
+    overflow: hidden;
+    font-family: 'Rajdhani', sans-serif;
+    color: var(--text-hi);
+  }
+
+  .stage {
+    position: absolute;
+    inset: 0;
+    transform: scaleX(-1); /* mirror video + orb + skeleton together */
+  }
+
+  #webcam {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    filter: brightness(0.35) saturate(1.3) contrast(1.1);
+  }
+
+  #orbCanvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    mix-blend-mode: screen;
+  }
+
+  #overlay {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .vignette {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: radial-gradient(ellipse at center, transparent 40%, rgba(5,7,12,0.85) 100%);
+    z-index: 5;
+  }
+
+  .scanlines {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      to bottom,
+      rgba(77,227,255,0.035) 0px,
+      rgba(77,227,255,0.035) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+    z-index: 6;
+    opacity: 0.5;
+  }
+
+  /* ---- HUD (unmirrored, sits above everything) ---- */
+  .hud {
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    pointer-events: none;
+  }
+
+  .panel {
+    position: absolute;
+    border: 1px solid var(--line);
+    background: linear-gradient(180deg, rgba(10,15,24,0.55), rgba(10,15,24,0.25));
+    backdrop-filter: blur(2px);
+    padding: 14px 18px;
+  }
+  .panel::before, .panel::after,
+  .panel .cB1, .panel .cB2 {
+    content: "";
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    border-color: var(--cyan);
+    border-style: solid;
+    opacity: 0.9;
+  }
+  .panel::before { top: -1px; left: -1px; border-width: 2px 0 0 2px; }
+  .panel::after { top: -1px; right: -1px; border-width: 2px 2px 0 0; }
+  .panel .cB1 { bottom: -1px; left: -1px; border-width: 0 0 2px 2px; }
+  .panel .cB2 { bottom: -1px; right: -1px; border-width: 0 2px 2px 0; }
+
+  .title-panel {
+    top: 28px; left: 28px;
+    letter-spacing: 4px;
+  }
+  .title-panel h1 {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--cyan);
+    text-shadow: 0 0 12px rgba(77,227,255,0.6);
+  }
+  .title-panel p {
+    margin: 4px 0 0;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text-lo);
+    letter-spacing: 2px;
+  }
+
+  .status-panel {
+    top: 28px; right: 28px;
+    width: 230px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+  }
+  .status-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 0;
+    border-bottom: 1px solid rgba(77,227,255,0.12);
+    color: var(--text-lo);
+  }
+  .status-row:last-child { border-bottom: none; }
+  .status-row .val { color: var(--text-hi); font-weight: 500; }
+  .dot {
+    display: inline-block;
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    margin-right: 6px;
+    box-shadow: 0 0 6px currentColor;
+  }
+  .dot.on { background: var(--cyan); color: var(--cyan); }
+  .dot.off { background: var(--danger); color: var(--danger); }
+
+  .gesture-panel {
+    bottom: 28px; left: 50%;
+    transform: translateX(-50%);
+    width: 460px;
+    text-align: center;
+  }
+  .gesture-panel .label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 3px;
+    color: var(--text-lo);
+  }
+  .gesture-panel .msg {
+    font-size: 19px;
+    font-weight: 600;
+    color: var(--cyan);
+    margin-top: 2px;
+    min-height: 26px;
+    transition: color 0.2s;
+  }
+  .gesture-panel .msg.pinch { color: var(--violet); text-shadow: 0 0 14px var(--violet); }
+  .gesture-panel .msg.spread { color: var(--danger); text-shadow: 0 0 14px var(--danger); }
+
+  .legend-panel {
+    bottom: 28px; right: 28px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text-lo);
+    line-height: 1.8;
+  }
+  .legend-panel b { color: var(--cyan); }
+
+  .voice-panel {
+    bottom: 28px; left: 28px;
+    width: 300px;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    pointer-events: auto;
+  }
+  .mic-btn {
+    flex-shrink: 0;
+    width: 46px; height: 46px;
+    border-radius: 50%;
+    border: 1px solid var(--cyan);
+    background: rgba(77,227,255,0.06);
+    color: var(--cyan);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: 0.15s;
+    box-shadow: 0 0 10px rgba(77,227,255,0.25);
+  }
+  .mic-btn:hover { box-shadow: 0 0 16px rgba(77,227,255,0.5); }
+  .mic-btn.listening {
+    border-color: var(--danger);
+    color: var(--danger);
+    box-shadow: 0 0 18px rgba(255,77,94,0.6);
+    animation: micPulse 1s infinite;
+  }
+  .mic-btn.thinking {
+    border-color: var(--violet);
+    color: var(--violet);
+    box-shadow: 0 0 18px rgba(139,107,255,0.6);
+  }
+  .mic-btn.disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+    box-shadow: none;
+  }
+  @keyframes micPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.12); }
+  }
+  .voice-text {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    line-height: 1.6;
+  }
+  .voice-text .you {
+    color: var(--text-lo);
+  }
+  .voice-text .ultron {
+    color: var(--cyan);
+    margin-top: 4px;
+  }
+
+  .permission-gate {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    background: var(--void);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 18px;
+    text-align: center;
+  }
+  .permission-gate h2 {
+    color: var(--cyan);
+    letter-spacing: 3px;
+    font-size: 20px;
+  }
+  .permission-gate button {
+    background: transparent;
+    border: 1px solid var(--cyan);
+    color: var(--cyan);
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 600;
+    letter-spacing: 3px;
+    font-size: 15px;
+    padding: 12px 28px;
+    cursor: pointer;
+    transition: 0.2s;
+  }
+  .permission-gate button:hover {
+    background: var(--cyan);
+    color: var(--void);
+    box-shadow: 0 0 20px var(--cyan);
+  }
+  .permission-gate p {
+    color: var(--text-lo);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    max-width: 420px;
+  }
+</style>
+</head>
+<body>
+
+  <div class="stage">
+    <video id="webcam" autoplay playsinline muted></video>
+    <canvas id="orbCanvas"></canvas>
+    <canvas id="overlay"></canvas>
+  </div>
+
+  <div class="vignette"></div>
+  <div class="scanlines"></div>
+
+  <div class="hud">
+    <div class="panel title-panel">
+      <h1>ULTRON</h1>
+      <p>GESTURE + VOICE CORE // MEDIAPIPE + THREE.JS</p>
+    </div>
+
+    <div class="panel status-panel">
+      <div class="status-row"><span><span id="camDot" class="dot off"></span>WEBCAM</span><span id="camVal" class="val">OFFLINE</span></div>
+      <div class="status-row"><span><span id="handDot" class="dot off"></span>HAND LOCK</span><span id="handVal" class="val">NO SIGNAL</span></div>
+      <div class="status-row"><span><span id="bridgeDot" class="dot off"></span>LOCAL BRIDGE</span><span id="bridgeVal" class="val">CHECKING</span></div>
+      <div class="status-row"><span><span id="runDot" class="dot off"></span>ULTRON LOOP</span><span id="runVal" class="val">IDLE</span></div>
+      <div class="status-row"><span><span id="voiceDot" class="dot off"></span>VOICE</span><span id="voiceVal" class="val">CHECKING</span></div>
+    </div>
+
+    <div class="panel gesture-panel">
+      <div class="label">GESTURE STATUS</div>
+      <div id="gestureMsg" class="msg">— awaiting hand —</div>
+    </div>
+
+    <div class="panel legend-panel">
+      <div><b>PINCH</b> (thumb + index) → launch loop</div>
+      <div><b>SPREAD</b> (open hand fast) → kill loop</div>
+      <div><b>TWO HANDS APART/TOGETHER</b> → zoom orb</div>
+      <div><b>SHOW BOTH HANDS</b> → split into twin orbs</div>
+      <div><b>HOLD V</b> or click mic → talk</div>
+    </div>
+
+    <div class="panel voice-panel">
+      <button id="micBtn" class="mic-btn" title="Hold to talk, or press and hold V">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+          <line x1="12" y1="19" x2="12" y2="23"/>
+          <line x1="8" y1="23" x2="16" y2="23"/>
+        </svg>
+      </button>
+      <div class="voice-text">
+        <div id="voiceYou" class="you">hold to talk to ultron</div>
+        <div id="voiceUltron" class="ultron"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="permission-gate" id="gate">
+    <h2>ULTRON CORE</h2>
+    <p>
+      This needs webcam access to track your hand in the browser (nothing
+      is uploaded — MediaPipe runs locally), and mic access if you want to
+      talk to it (speech recognition also runs in-browser). It polls a
+      local bridge server on <b>localhost:8765</b> so a pinch, spread, or
+      voice command can start or stop <code>ultron_runtime.py</code>. Run
+      <code>python gesture_bridge.py</code> first if you want that part
+      to work — the orb, hand tracking, and voice UI all work without it
+      too, just without the ability to actually launch anything.
+    </p>
+    <p style="margin-top:-6px;">
+      <code>gesture_bridge.py</code> prints a <b>bridge token</b> when it
+      starts. Paste it below so this page can authenticate &mdash; without
+      it, pinch/spread/voice reach the bridge but get rejected (403).
+    </p>
+    <input id="tokenInput" type="text" placeholder="paste bridge token here"
+      style="font-family:'JetBrains Mono',monospace;font-size:13px;padding:10px 14px;
+      background:rgba(10,15,24,0.6);border:1px solid var(--cyan-dim);color:var(--text-hi);
+      width:340px;text-align:center;outline:none;">
+    <button id="startBtn">ACTIVATE CAMERA</button>
+  </div>
+
+<script type="module">
+import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/+esm";
+import { FilesetResolver, HandLandmarker } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/+esm";
+
+// Use whatever hostname the page was actually loaded from (localhost or
+// 127.0.0.1), so this never mismatches the bridge server's CORS check.
+const BRIDGE_URL = window.location.origin.includes("8765")
+  ? window.location.origin
+  : "http://localhost:8765";
+let BRIDGE_TOKEN = "";
+const PINCH_ON = 0.055;   // normalized thumb-index distance to count as pinched
+const PINCH_OFF = 0.14;   // distance to count as fully open again
+const GESTURE_COOLDOWN_MS = 1800;
+
+// ---------- DOM ----------
+const video = document.getElementById("webcam");
+const overlay = document.getElementById("overlay");
+const octx = overlay.getContext("2d");
+const gate = document.getElementById("gate");
+const startBtn = document.getElementById("startBtn");
+
+const camDot = document.getElementById("camDot"), camVal = document.getElementById("camVal");
+const handDot = document.getElementById("handDot"), handVal = document.getElementById("handVal");
+const bridgeDot = document.getElementById("bridgeDot"), bridgeVal = document.getElementById("bridgeVal");
+const runDot = document.getElementById("runDot"), runVal = document.getElementById("runVal");
+const gestureMsg = document.getElementById("gestureMsg");
+const voiceDot = document.getElementById("voiceDot"), voiceVal = document.getElementById("voiceVal");
+const micBtn = document.getElementById("micBtn");
+const voiceYou = document.getElementById("voiceYou");
+const voiceUltron = document.getElementById("voiceUltron");
+
+function resizeCanvases() {
+  for (const c of [overlay, orbCanvas]) {
+    c.width = window.innerWidth;
+    c.height = window.innerHeight;
+  }
+}
+window.addEventListener("resize", resizeCanvases);
+
+// ---------- Three.js orb(s) ----------
+const orbCanvas = document.getElementById("orbCanvas");
+const renderer = new THREE.WebGLRenderer({ canvas: orbCanvas, alpha: true, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+camera.position.z = 5.2;
+
+function createOrb() {
+  const group = new THREE.Group();
+
+  const outerGeo = new THREE.IcosahedronGeometry(1.6, 1);
+  const outerMat = new THREE.MeshBasicMaterial({ color: 0x4de3ff, wireframe: true, transparent: true, opacity: 0.55 });
+  const outerOrb = new THREE.Mesh(outerGeo, outerMat);
+  group.add(outerOrb);
+
+  const innerGeo = new THREE.IcosahedronGeometry(1.1, 2);
+  const innerMat = new THREE.MeshBasicMaterial({ color: 0x8b6bff, wireframe: true, transparent: true, opacity: 0.35 });
+  const innerOrb = new THREE.Mesh(innerGeo, innerMat);
+  group.add(innerOrb);
+
+  const coreGeo = new THREE.SphereGeometry(0.55, 24, 24);
+  const coreMat = new THREE.MeshBasicMaterial({ color: 0x4de3ff, transparent: true, opacity: 0.18 });
+  const core = new THREE.Mesh(coreGeo, coreMat);
+  group.add(core);
+
+  const ringCount = 220;
+  const ringGeo = new THREE.BufferGeometry();
+  const ringPos = new Float32Array(ringCount * 3);
+  for (let i = 0; i < ringCount; i++) {
+    const a = (i / ringCount) * Math.PI * 2;
+    const r = 2.3 + Math.random() * 0.15;
+    ringPos[i*3] = Math.cos(a) * r;
+    ringPos[i*3+1] = (Math.random() - 0.5) * 0.25;
+    ringPos[i*3+2] = Math.sin(a) * r;
+  }
+  ringGeo.setAttribute("position", new THREE.BufferAttribute(ringPos, 3));
+  const ringMat = new THREE.PointsMaterial({ color: 0x4de3ff, size: 0.02, transparent: true, opacity: 0.8 });
+  const ring = new THREE.Points(ringGeo, ringMat);
+  group.add(ring);
+
+  scene.add(group);
+  return { group, outerOrb, outerMat, innerOrb, core, ring };
+}
+
+const primaryOrb = createOrb();
+const secondaryOrb = createOrb();
+secondaryOrb.group.visible = false;
+
+let energy = 0;      // 0..1, rises when a hand is locked
+let burst = 0;        // 0..1, spikes on pinch, decays
+let isSpeaking = false; // true while the browser is speaking a reply aloud
+let talkPulse = 0;      // 0..1, spikes on each spoken word, decays fast
+let clock = new THREE.Clock();
+
+// ---- Two-hand gestures: continuous zoom + split-into-twin-orbs ----
+// splitAmount: 0 = single centered orb, 1 = fully split into two orbs
+// following each hand. zoomScale: continuous size multiplier driven by
+// how far apart the two hands are held. Both are smoothed every frame
+// rather than snapped, so the effect reads as fluid rather than jumpy.
+let splitAmount = 0;
+let zoomScale = 1;
+let primaryTarget = new THREE.Vector3(0, 0, 0);
+let secondaryTarget = new THREE.Vector3(0, 0, 0);
+let zoomTarget = 1;
+let splitTargetAmount = 0;
+
+function landmarkToWorld(lm) {
+  // lm.x/lm.y are normalized 0..1 (MediaPipe, video space). The whole
+  // stage (video + overlay + orb canvas) is mirrored together via CSS,
+  // so no extra left/right flip is needed here to match what's on screen.
+  const worldX = (lm.x - 0.5) * 4.4;
+  const worldY = (0.5 - lm.y) * 3.0;
+  return new THREE.Vector3(worldX, worldY, 0);
+}
+
+const baseColor = new THREE.Color(0x4de3ff);
+const hotColor = new THREE.Color(0x8b6bff);
+
+function animateOneOrb(o, dt, t, phase, isSecondary) {
+  const spinDir = isSecondary ? -1 : 1;
+  o.outerOrb.rotation.y += dt * (0.15 + energy * 0.4) * spinDir;
+  o.outerOrb.rotation.x += dt * 0.05;
+  o.innerOrb.rotation.y -= dt * (0.25 + energy * 0.6) * spinDir;
+  o.ring.rotation.y += dt * (0.3 + burst * 2.0);
+
+  const basePulse = 1 + Math.sin(t * 2.2 + phase) * 0.03 + energy * 0.12 + burst * 0.35
+                    + talkPulse * 0.16 + (isSpeaking ? 0.04 : 0);
+  // Primary shrinks slightly as it hands off size to the secondary while
+  // splitting; secondary grows in from nothing as splitAmount rises.
+  const sizeShare = isSecondary ? (0.55 * splitAmount) : (1 - 0.3 * splitAmount);
+  const pulse = basePulse * zoomScale * sizeShare;
+  o.outerOrb.scale.setScalar(Math.max(pulse, 0.001));
+  o.innerOrb.scale.setScalar(Math.max(pulse * 0.96, 0.001));
+  o.core.scale.setScalar((1 + Math.sin(t * 3.0 + phase) * 0.06 + burst * 0.5 + talkPulse * 0.6) * (isSecondary ? splitAmount : 1));
+
+  const mixed = baseColor.clone().lerp(hotColor, Math.min(burst * 1.4 + talkPulse * 0.5, 1));
+  o.outerMat.color = mixed;
+  const fade = isSecondary ? splitAmount : 1;
+  o.outerMat.opacity = (0.4 + energy * 0.3 + burst * 0.3 + talkPulse * 0.15) * fade;
+  o.core.material.opacity = (0.15 + energy * 0.25 + burst * 0.4 + talkPulse * 0.3) * fade;
+}
+
+function animateOrb() {
+  requestAnimationFrame(animateOrb);
+  const dt = clock.getDelta();
+  const t = clock.getElapsedTime();
+
+  // Smooth every continuous gesture value toward its latest target —
+  // keeps zoom/split feeling fluid rather than snapping frame to frame.
+  splitAmount += (splitTargetAmount - splitAmount) * 0.08;
+  zoomScale += (zoomTarget - zoomScale) * 0.08;
+  primaryOrb.group.position.lerp(primaryTarget, 0.12);
+  secondaryOrb.group.position.lerp(secondaryTarget, 0.12);
+  secondaryOrb.group.visible = splitAmount > 0.01;
+
+  animateOneOrb(primaryOrb, dt, t, 0, false);
+  animateOneOrb(secondaryOrb, dt, t, 1.4, true);
+
+  burst *= 0.90; // decay
+  talkPulse *= 0.80; // decay faster than burst — reads as a beat per word, not a lingering glow
+
+  renderer.setSize(window.innerWidth, window.innerHeight, false);
+  renderer.render(scene, camera);
+}
+
+function setEnergy(target) {
+  energy += (target - energy) * 0.08;
+}
+
+// ---------- Hand tracking ----------
+let handLandmarker = null;
+let handState = "OPEN"; // OPEN | PINCHED
+let lastGestureAt = 0;
+
+const HAND_CONNECTIONS = [
+  [0,1],[1,2],[2,3],[3,4],
+  [0,5],[5,6],[6,7],[7,8],
+  [5,9],[9,10],[10,11],[11,12],
+  [9,13],[13,14],[14,15],[15,16],
+  [13,17],[17,18],[18,19],[19,20],
+  [0,17]
+];
+
+async function initHandLandmarker() {
+  const vision = await FilesetResolver.forVisionTasks(
+    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
+  );
+  handLandmarker = await HandLandmarker.createFromOptions(vision, {
+    baseOptions: {
+      modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+      delegate: "GPU"
+    },
+    runningMode: "VIDEO",
+    numHands: 2
+  });
+}
+
+function dist(a, b) {
+  const dx = a.x - b.x, dy = a.y - b.y, dz = (a.z||0) - (b.z||0);
+  return Math.sqrt(dx*dx + dy*dy + dz*dz);
+}
+
+function drawOneHand(landmarks) {
+  const w = overlay.width, h = overlay.height;
+  octx.strokeStyle = "rgba(77,227,255,0.8)";
+  octx.lineWidth = 2;
+  octx.shadowColor = "#4de3ff";
+  octx.shadowBlur = 6;
+
+  for (const [a, b] of HAND_CONNECTIONS) {
+    const p1 = landmarks[a], p2 = landmarks[b];
+    octx.beginPath();
+    octx.moveTo(p1.x * w, p1.y * h);
+    octx.lineTo(p2.x * w, p2.y * h);
+    octx.stroke();
+  }
+
+  octx.fillStyle = "#dff3ff";
+  for (const p of landmarks) {
+    octx.beginPath();
+    octx.arc(p.x * w, p.y * h, 3, 0, Math.PI * 2);
+    octx.fill();
+  }
+
+  // highlight thumb/index tips
+  octx.fillStyle = "#8b6bff";
+  for (const idx of [4, 8]) {
+    const p = landmarks[idx];
+    octx.beginPath();
+    octx.arc(p.x * w, p.y * h, 6, 0, Math.PI * 2);
+    octx.fill();
+  }
+}
+
+function drawHand(handsLandmarks) {
+  octx.clearRect(0, 0, overlay.width, overlay.height);
+  if (!handsLandmarks || handsLandmarks.length === 0) return;
+  for (const landmarks of handsLandmarks) {
+    drawOneHand(landmarks);
+  }
+}
+
+function setGestureMessage(text, cls) {
+  gestureMsg.textContent = text;
+  gestureMsg.className = "msg" + (cls ? " " + cls : "");
+}
+
+async function handleGesture(kind) {
+  const now = performance.now();
+  if (now - lastGestureAt < GESTURE_COOLDOWN_MS) return;
+  lastGestureAt = now;
+
+  if (kind === "pinch") {
+    burst = 1.0;
+    setGestureMessage("PINCH DETECTED → LAUNCHING", "pinch");
+  } else {
+    burst = 0.6;
+    setGestureMessage("SPREAD DETECTED → STOPPING", "spread");
+  }
+  await sendGesture(kind);
+  setTimeout(() => setGestureMessage(handState === "PINCHED" ? "hand pinched" : "— awaiting hand —"), 2200);
+}
+
+// Two-hand zoom: normalized distance between palm centers mapped to a
+// size multiplier. Tuned by eye rather than derived — the goal is "feels
+// right when you spread your hands", not a physically exact zoom.
+const ZOOM_MIN_DIST = 0.15;  // hands close together -> zoomTarget ~= 0.75
+const ZOOM_MAX_DIST = 0.75;  // hands spread wide    -> zoomTarget ~= 1.6
+const PALM_LANDMARK = 9;     // middle-finger MCP, a stable palm-center point
+
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+function lerp(a, b, t) { return a + (b - a) * t; }
+
+function processLandmarks(result) {
+  const hands = result.landmarks || [];
+
+  if (hands.length === 0) {
+    handDot.className = "dot off";
+    handVal.textContent = "NO SIGNAL";
+    setEnergy(0);
+    drawHand(null);
+    // No hands: recenter into a single orb, reset zoom.
+    splitTargetAmount = 0;
+    zoomTarget = 1;
+    primaryTarget.set(0, 0, 0);
+    secondaryTarget.set(0, 0, 0);
+    return;
+  }
+
+  drawHand(hands);
+  setEnergy(1);
+
+  if (hands.length === 1) {
+    handDot.className = "dot on";
+    handVal.textContent = "TRACKING";
+
+    // Single hand: back to one centered orb, no zoom offset — and this
+    // is the only mode that fires the launch/kill gestures, so pinch and
+    // two-hand zoom/split can never be confused with each other.
+    splitTargetAmount = 0;
+    zoomTarget = 1;
+    primaryTarget.set(0, 0, 0);
+
+    const lm = hands[0];
+    const d = dist(lm[4], lm[8]);
+    if (handState === "OPEN" && d < PINCH_ON) {
+      handState = "PINCHED";
+      handleGesture("pinch");
+    } else if (handState === "PINCHED" && d > PINCH_OFF) {
+      handState = "OPEN";
+      handleGesture("spread");
+    }
+    return;
+  }
+
+  // Two hands: split the orb into a twin following each hand, and use
+  // the distance between the hands as a continuous zoom control. Pinch/
+  // spread launch detection is intentionally paused in this mode.
+  handDot.className = "dot on";
+  handVal.textContent = "TWO HANDS — ZOOM + SPLIT";
+  setGestureMessage("two hands — zoom & split active", "");
+
+  const [handA, handB] = hands;
+  const palmA = handA[PALM_LANDMARK], palmB = handB[PALM_LANDMARK];
+
+  splitTargetAmount = 1;
+  primaryTarget.copy(landmarkToWorld(palmA));
+  secondaryTarget.copy(landmarkToWorld(palmB));
+
+  const spreadDist = dist(palmA, palmB);
+  const t = clamp((spreadDist - ZOOM_MIN_DIST) / (ZOOM_MAX_DIST - ZOOM_MIN_DIST), 0, 1);
+  zoomTarget = lerp(0.75, 1.6, t);
+}
+
+async function trackLoop() {
+  if (handLandmarker && video.readyState >= 2) {
+    const result = handLandmarker.detectForVideo(video, performance.now());
+    processLandmarks(result);
+  }
+  requestAnimationFrame(trackLoop);
+}
+
+// ---------- Local bridge polling ----------
+async function sendGesture(gesture) {
+  try {
+    await fetch(BRIDGE_URL + "/gesture", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Ultron-Token": BRIDGE_TOKEN },
+      body: JSON.stringify({ gesture })
+    });
+  } catch (e) {
+    // bridge not running — orb + tracking still work standalone
+  }
+}
+
+async function pollBridge() {
+  try {
+    const res = await fetch(BRIDGE_URL + "/status", { cache: "no-store" });
+    const data = await res.json();
+    bridgeDot.className = "dot on";
+    bridgeVal.textContent = "ONLINE";
+    runDot.className = data.running ? "dot on" : "dot off";
+    runVal.textContent = data.running ? "RUNNING" : "IDLE";
+  } catch (e) {
+    bridgeDot.className = "dot off";
+    bridgeVal.textContent = "OFFLINE";
+    runDot.className = "dot off";
+    runVal.textContent = "—";
+  }
+  setTimeout(pollBridge, 3000);
+}
+
+// ---------- Voice: listen ----------
+const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recognition = null;
+let isListening = false;
+let voiceSupported = false;
+
+function initVoice() {
+  if (!SpeechRecognitionAPI || !window.speechSynthesis) {
+    voiceDot.className = "dot off";
+    voiceVal.textContent = "UNSUPPORTED";
+    micBtn.classList.add("disabled");
+    micBtn.title = "Speech recognition needs Chrome or Edge";
+    return;
+  }
+  voiceSupported = true;
+  voiceDot.className = "dot on";
+  voiceVal.textContent = "READY";
+
+  recognition = new SpeechRecognitionAPI();
+  recognition.continuous = false;
+  recognition.interimResults = true;
+  recognition.lang = "en-US";
+
+  recognition.onresult = (event) => {
+    let transcript = "";
+    for (let i = 0; i < event.results.length; i++) {
+      transcript += event.results[i][0].transcript;
+    }
+    voiceYou.textContent = `"${transcript}"`;
+    if (event.results[event.results.length - 1].isFinal) {
+      submitTranscript(transcript.trim());
+    }
+  };
+
+  recognition.onerror = (e) => {
+    stopListening();
+    if (e.error !== "no-speech" && e.error !== "aborted") {
+      voiceYou.textContent = `(mic error: ${e.error})`;
+    }
+  };
+
+  recognition.onend = () => stopListening();
+}
+
+function startListening() {
+  if (!voiceSupported || isListening) return;
+  isListening = true;
+  burst = Math.max(burst, 0.4);
+  micBtn.classList.add("listening");
+  voiceYou.textContent = "listening...";
+  voiceUltron.textContent = "";
+  try {
+    recognition.start();
+  } catch (e) {
+    // already-started errors are harmless, ignore
+  }
+}
+
+function stopListening() {
+  if (!isListening) return;
+  isListening = false;
+  micBtn.classList.remove("listening");
+  try { recognition.stop(); } catch (e) {}
+}
+
+async function submitTranscript(transcript) {
+  if (!transcript) return;
+  micBtn.classList.add("thinking");
+  voiceUltron.textContent = "thinking...";
+
+  try {
+    const res = await fetch(BRIDGE_URL + "/voice", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Ultron-Token": BRIDGE_TOKEN },
+      body: JSON.stringify({ transcript })
+    });
+    if (res.status === 403) throw new Error("bad or missing bridge token");
+    if (!res.ok) throw new Error("bridge error " + res.status);
+    const data = await res.json();
+    speakReply(data.reply || "(no reply)");
+
+    if (data.command === "START") {
+      burst = 1.0;
+      setGestureMessage("VOICE → LAUNCHING", "pinch");
+    } else if (data.command === "STOP") {
+      burst = 0.6;
+      setGestureMessage("VOICE → STOPPING", "spread");
+    }
+  } catch (e) {
+    voiceUltron.textContent = e.message === "bad or missing bridge token"
+      ? "(bridge token missing/incorrect — paste it in on the start screen)"
+      : "(local bridge offline — start gesture_bridge.py)";
+  } finally {
+    micBtn.classList.remove("thinking");
+  }
+}
+
+function speakReply(text) {
+  voiceUltron.textContent = text;
+  if (!window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.rate = 1.03;
+  utter.pitch = 0.9;
+
+  // Voice-reactive orb: onboundary fires roughly once per spoken word (or
+  // sentence, depending on the browser/voice), so each one gives the orb
+  // a little pulse timed to the actual speech rather than a fixed
+  // animation guessing at rhythm. onstart/onend/onerror bracket a gentle
+  // sustained glow for the whole reply.
+  utter.onstart = () => { isSpeaking = true; };
+  utter.onend = () => { isSpeaking = false; };
+  utter.onerror = () => { isSpeaking = false; };
+  utter.onboundary = () => { talkPulse = 1.0; };
+
+  window.speechSynthesis.speak(utter);
+}
+
+// mic button: press and hold
+micBtn.addEventListener("mousedown", startListening);
+micBtn.addEventListener("mouseup", stopListening);
+micBtn.addEventListener("mouseleave", stopListening);
+micBtn.addEventListener("touchstart", (e) => { e.preventDefault(); startListening(); });
+micBtn.addEventListener("touchend", (e) => { e.preventDefault(); stopListening(); });
+
+// keyboard: hold "V" to talk
+window.addEventListener("keydown", (e) => {
+  if (e.key.toLowerCase() === "v" && !e.repeat) startListening();
+});
+window.addEventListener("keyup", (e) => {
+  if (e.key.toLowerCase() === "v") stopListening();
+});
+
+// ---------- Boot ----------
+async function start() {
+  gate.style.display = "none";
+  resizeCanvases();
+
+  const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+  video.srcObject = stream;
+  await video.play();
+  camDot.className = "dot on";
+  camVal.textContent = "LIVE";
+
+  await initHandLandmarker();
+  initVoice();
+
+  animateOrb();
+  trackLoop();
+  pollBridge();
+}
+
+startBtn.addEventListener("click", () => {
+  BRIDGE_TOKEN = document.getElementById("tokenInput").value.trim();
+  start().catch(err => {
+    alert("Couldn't start: " + err.message + "\n(Camera permission or HTTPS/localhost is usually the cause.)");
+  });
+});
+</script>
+</body>
+</html>
