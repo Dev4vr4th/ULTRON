@@ -14,9 +14,7 @@ A free, local Python agent that watches a screen (your desktop or your own
 Android phone over ADB), decides the next action with Gemini's free-tier
 vision model, and executes it — looping until the goal is done.
 
-This is the "Ultron" half of the JARVIS/Ultron blueprint. JARVIS (the
-n8n Telegram assistant) is a separate, no-code build — say the word and
-I'll put together the importable n8n workflow JSON next.
+This is the "Ultron" half of the JARVIS/Ultron blueprint. 
 
 ## What's here
 
@@ -356,7 +354,3 @@ The default model is `gemini-3.1-flash-lite` (updated August 2026 — the origin
 ```
 $env:ULTRON_MODEL = "gemini-3.5-flash"
 ```
-
-## Good luck with exams
-
-This is entirely a "build it after exams" project — nothing here needs to be run right now.
